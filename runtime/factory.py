@@ -6,12 +6,13 @@ parts per invocation.
 """
 
 import logging
-from typing import Callable, Dict, List, Optional, Any
+from typing import List, Optional, Any, Literal
 from strands import Agent
 from strands.tools.mcp import MCPClient
 from strands.models import BedrockModel
 from bedrock_agentcore.memory.integrations.strands.config import AgentCoreMemoryConfig
 from bedrock_agentcore.memory.integrations.strands.session_manager import AgentCoreMemorySessionManager
+from mcp.client.streamable_http import streamable_http_client
 
 
 logger = logging.getLogger(__name__)
@@ -26,21 +27,16 @@ class AgentFactoryConfig:
     
     def __init__(
         self,
-        # Required configuration
+        system_prompt: str,
         model_id: str,
         memory_id: str,
         region_name: str,
-        # Model configuration (optional)
         guardrail_id: Optional[str] = None,
         guardrail_version: Optional[str] = None,
-        guardrail_trace: str = "enabled",
-        # MCP configuration (optional)
-        mcp_transport_factory: Optional[Callable] = None,
-        allowed_mcp_tool_names: Optional[set[str]] = None,
-        # Tools configuration (optional)
-        local_tools: Optional[List[Any]] = None,
-        # System prompt (optional)
-        system_prompt: Optional[str] = None,
+        guardrail_trace: Literal["enabled", "disabled"] = "disabled",
+        mcp_url: Optional[str] = None,
+        mcp_tools: Optional[List[Any]] = None,
+        local_tools: Optional[List[Any]] = None
     ):
         """Initialize factory configuration.
         
@@ -56,16 +52,19 @@ class AgentFactoryConfig:
             local_tools: Optional list of local tools to include
             system_prompt: Optional system prompt for the agent
         """
+        
         self.model_id = model_id
         self.guardrail_id = guardrail_id
         self.guardrail_version = guardrail_version
         self.guardrail_trace = guardrail_trace
         self.memory_id = memory_id
         self.region_name = region_name
-        self.mcp_transport_factory = mcp_transport_factory
-        self.allowed_mcp_tool_names = allowed_mcp_tool_names or set()
+
+        self.mcp_transport_factory = streamable_http_client(mcp_url) if mcp_url else None
+        self.mcp_tools = mcp_tools or []
+
         self.local_tools = local_tools or []
-        self.system_prompt = system_prompt or ""
+        self.system_prompt = system_prompt
 
 
 class AgentFactory:
@@ -98,8 +97,10 @@ class AgentFactory:
             "model_id": self.config.model_id,
             "guardrail_trace": self.config.guardrail_trace,
         }
+
         if self.config.guardrail_id:
             model_kwargs["guardrail_id"] = self.config.guardrail_id
+
         if self.config.guardrail_version:
             model_kwargs["guardrail_version"] = self.config.guardrail_version
         
@@ -121,9 +122,11 @@ class AgentFactory:
                             if tool.tool_name in self.config.allowed_mcp_tool_names
                         ]
                         logger.info(f"FILTERED MCP TOOLS: {mcp_tools}")
+
                     else:
                         # Use all MCP tools if no filter specified
                         mcp_tools = list(all_mcp_tools)
+
             except Exception as e:
                 logger.error(f"Error initializing MCP tools: {str(e)}")
                 mcp_tools = []
@@ -172,6 +175,7 @@ class AgentFactory:
                 session_manager=session_manager
             )
             return agent
+
         except Exception as e:
             logger.error(f"Error creating agent: {str(e)}")
             return None
