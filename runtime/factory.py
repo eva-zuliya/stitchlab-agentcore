@@ -35,7 +35,7 @@ class AgentFactoryConfig:
         guardrail_version: Optional[str] = None,
         guardrail_trace: Literal["enabled", "disabled"] = "disabled",
         mcp_url: Optional[str] = None,
-        mcp_tools: Optional[List[Any]] = None,
+        mcp_tools: Optional[List[str]] = None,
         local_tools: Optional[List[Any]] = None
     ):
         """Initialize factory configuration.
@@ -46,11 +46,11 @@ class AgentFactoryConfig:
             region_name: AWS region name (required)
             guardrail_id: Optional guardrail ID
             guardrail_version: Optional guardrail version
-            guardrail_trace: Guardrail trace setting (default: "enabled")
-            mcp_transport_factory: Optional callable that returns MCP transport
-            allowed_mcp_tool_names: Optional set of allowed MCP tool names to filter
+            guardrail_trace: Guardrail trace setting (default: "disabled")
+            mcp_url: Optional MCP server URL (e.g., "http://localhost:8000/mcp")
+            mcp_tools: Optional list of MCP tool names to filter/allow (if None, all tools are used)
             local_tools: Optional list of local tools to include
-            system_prompt: Optional system prompt for the agent
+            system_prompt: System prompt for the agent
         """
         
         self.model_id = model_id
@@ -60,8 +60,10 @@ class AgentFactoryConfig:
         self.memory_id = memory_id
         self.region_name = region_name
 
+        # Set up MCP transport factory if URL is provided
         self.mcp_transport_factory = streamable_http_client(mcp_url) if mcp_url else None
-        self.mcp_tools = mcp_tools or []
+        # mcp_tools is a list of tool names to filter/allow
+        self.allowed_mcp_tool_names = set(mcp_tools) if mcp_tools else None
 
         self.local_tools = local_tools or []
         self.system_prompt = system_prompt

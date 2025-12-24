@@ -1,4 +1,4 @@
-from typing import Generic, TypeVar, Optional
+from typing import Generic, TypeVar, Optional, Literal
 from pydantic import BaseModel
 from litellm import Router
 import logging
@@ -12,17 +12,11 @@ class BaseSettings(BaseModel):
     MODEL_ID: str
     MEMORY_ID: str
     BEDROCK_REGION: str
-    BEDROCK_GUARDRAIL_ID: Optional[str] = None,
+    BEDROCK_GUARDRAIL_TRACE: Optional[Literal["enabled", "disabled"]] = "disabled"
+    BEDROCK_GUARDRAIL_ID: Optional[str] = None
     BEDROCK_GUARDRAIL_VER: Optional[str] = None
     MCP_URL: Optional[str] = None
     MCP_TOOLS: Optional[list[str]] = None
-
-    @property
-    def BEDROCK_GUARDRAIL_TRACE(self):
-        if self.BEDROCK_GUARDRAIL_ID is not None and self.BEDROCK_GUARDRAIL_VER is not None:
-            return "enabled"
-
-        return "disabled"
 
 
 class BaseModelRegistry(BaseModel):
@@ -74,12 +68,18 @@ class GlobalConfig(Generic[TSettings, TModelRegistry]):
 
         model_list = []
         for name, value in models.model_dump().items():
+            litellm_params = {
+                "model": value
+            }
+            
+            if settings.BEDROCK_GUARDRAIL_ID is not None and settings.BEDROCK_GUARDRAIL_VER is not None:
+                litellm_params["guardrailIdentifier"] = settings.BEDROCK_GUARDRAIL_ID
+                litellm_params["guardrailVersion"] = settings.BEDROCK_GUARDRAIL_VER
+            
             model_list.append(
                 {
                     "model_name": name,
-                    "litellm_params": {
-                        "model": value
-                    }
+                    "litellm_params": litellm_params
                 }
             )
 

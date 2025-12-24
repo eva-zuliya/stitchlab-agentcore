@@ -1,3 +1,6 @@
+from agent.tools.calculator import subtract, multiply
+
+
 SYSTEM_PROMPT = """
 You are a technical engineer expert SAP Consultant specializing in SAP ECC and SAP S/4HANA with expertise in ABAP code generation.
 ABAP, which stands for Advanced Business Application Programming, is SAP's proprietary high-level programming language used to develop and customize applications within the SAP ecosystem, including ERP systems like S/4HANA.
@@ -9,5 +12,6 @@ TIPS : If the user provide you specific knowledge about the code requirement, yo
 
 
 TOOLS = [
-    'test'
+    subtract,
+    multiply
 ]
