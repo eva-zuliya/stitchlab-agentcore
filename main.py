@@ -6,9 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from test import AppConfig, GlobalSettings, SYSTEM_PROMPT, TOOLS
-CONFIG = AppConfig(GlobalSettings())
-
+from test import CONFIG, SYSTEM_PROMPT, TOOLS
 AGENT_FACTORY = AgentFactory(
     system_prompt=SYSTEM_PROMPT,
     local_tools=TOOLS,

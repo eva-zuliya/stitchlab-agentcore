@@ -30,6 +30,7 @@ class GlobalSettings(BaseSettings):
 class AppConfig(GlobalConfig[GlobalSettings]):
     pass
 
+CONFIG = AppConfig(GlobalSettings())
 
 from strands import tool
 

@@ -1,6 +1,6 @@
 from typing import Generic, TypeVar, Optional, Literal
 from pydantic import BaseModel
-from litellm import Router
+import litellm
 import logging
 
 

@@ -7,6 +7,10 @@ requires-python = ">=3.14"
 dependencies = [
     "strands-agents==1.20.0",
     "langfuse>=2.0.0,<3.0.0",
+    "bedrock-agentcore==1.1.1",
+    "fastapi==0.127.0",
+    "mcp==1.25.0",
+    "litellm==1.80.11"
 ]
 
 [project.optional-dependencies]
