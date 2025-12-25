@@ -36,13 +36,6 @@ class AgentFactory:
             config: AgentFactoryConfig instance with project-specific settings
         """
         self.config = config
-
-        # Set up MCP transport factory if URL is provided
-        self.mcp_transport_factory = lambda: streamable_http_client(config.settings.MCP_URL)
-
-        # mcp_tools is a list of tool names to filter/allow
-        self.allowed_mcp_tool_names = set(config.settings.MCP_TOOLS) if config.settings.MCP_TOOLS else None
-
         self.local_tools = local_tools or []
         self.system_prompt = system_prompt
 
