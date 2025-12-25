@@ -13,62 +13,10 @@ from strands.models.litellm import LiteLLMModel
 from bedrock_agentcore.memory.integrations.strands.config import AgentCoreMemoryConfig
 from bedrock_agentcore.memory.integrations.strands.session_manager import AgentCoreMemorySessionManager
 from mcp.client.streamable_http import streamable_http_client
+from config import GlobalConfig, BaseSettings
 
 
 logger = logging.getLogger(__name__)
-
-
-class AgentFactoryConfig:
-    """Configuration for AgentFactory.
-    
-    This class holds all configuration needed to create agents.
-    Developers should create an instance of this with their project-specific settings.
-    """
-    
-    def __init__(
-        self,
-        system_prompt: str,
-        memory_id: str,
-        region_name: str,
-        model_id: str,
-        guardrail_id: Optional[str] = None,
-        guardrail_version: Optional[str] = None,
-        guardrail_trace: Literal["enabled", "disabled"] = "disabled",
-        mcp_url: Optional[str] = None,
-        mcp_tools: Optional[List[str]] = None,
-        local_tools: Optional[List[Any]] = None
-    ):
-        """Initialize factory configuration.
-        
-        Args:
-            model_id: Bedrock model ID to use (required)
-            memory_id: Memory ID for session management (required)
-            region_name: AWS region name (required)
-            guardrail_id: Optional guardrail ID
-            guardrail_version: Optional guardrail version
-            guardrail_trace: Guardrail trace setting (default: "disabled")
-            mcp_url: Optional MCP server URL (e.g., "http://localhost:8000/mcp")
-            mcp_tools: Optional list of MCP tool names to filter/allow (if None, all tools are used)
-            local_tools: Optional list of local tools to include
-            system_prompt: System prompt for the agent
-        """
-        
-        self.model_id = model_id
-        self.guardrail_id = guardrail_id
-        self.guardrail_version = guardrail_version
-        self.guardrail_trace = guardrail_trace
-        self.memory_id = memory_id
-        self.region_name = region_name
-
-        # Set up MCP transport factory if URL is provided
-        self.mcp_transport_factory = lambda: streamable_http_client(mcp_url)
-
-        # mcp_tools is a list of tool names to filter/allow
-        self.allowed_mcp_tool_names = set(mcp_tools) if mcp_tools else None
-
-        self.local_tools = local_tools or []
-        self.system_prompt = system_prompt
-
 
 class AgentFactory:
     """Factory class that caches expensive agent components and only creates session-specific parts.
@@ -77,13 +25,27 @@ class AgentFactory:
     should create an instance with their specific AgentFactoryConfig.
     """
     
-    def __init__(self, config: AgentFactoryConfig):
+    def __init__(self, 
+        config: GlobalConfig[BaseSettings],
+        system_prompt: str,
+        local_tools: Optional[List[Any]] = None,
+    ):
         """Initialize the factory with configuration.
         
         Args:
             config: AgentFactoryConfig instance with project-specific settings
         """
         self.config = config
+
+        # Set up MCP transport factory if URL is provided
+        self.mcp_transport_factory = lambda: streamable_http_client(config.settings.MCP_URL)
+
+        # mcp_tools is a list of tool names to filter/allow
+        self.allowed_mcp_tool_names = set(config.settings.MCP_TOOLS) if config.settings.MCP_TOOLS else None
+
+        self.local_tools = local_tools or []
+        self.system_prompt = system_prompt
+
         self.model: Optional[LiteLLMModel] = None
         self._cached_tools: Optional[List[Any]] = None
         self._initialized = False
@@ -97,26 +59,26 @@ class AgentFactory:
         
         # Use the litellm model with the configured model_id
         self.model = LiteLLMModel(
-            model_id=self.config.model_id
+            model_id=self.config.settings.MODEL_ID
         )
-        logger.info(f"Using LiteLLM model with model_id: {self.config.model_id}")
+        logger.info(f"Using LiteLLM model with model_id: {self.config.settings.MODEL_ID}")
         
         # Fetch and cache MCP tools if configured (expensive operation)
         mcp_tools = []
-        if self.config.mcp_transport_factory:
+        if self.config.settings.MCP_URL:
             try:
                 logger.info("Initializing MCP client...")
                 # MCPClient must be used within a context manager
-                with MCPClient(self.config.mcp_transport_factory) as mcp_client:
+                with MCPClient(lambda: streamable_http_client(self.config.settings.MCP_URL)) as mcp_client:
                     # List all available tools from the MCP server
                     all_mcp_tools = mcp_client.list_tools_sync()
                     logger.info(f"MCP TOOLS discovered: {[tool.tool_name for tool in all_mcp_tools]}")
                         
-                    if self.config.allowed_mcp_tool_names:
+                    if self.config.settings.MCP_TOOLS:
                         # Filter tools by allowed names
                         mcp_tools = [
                             tool for tool in all_mcp_tools
-                            if tool.tool_name in self.config.allowed_mcp_tool_names
+                            if tool.tool_name in self.config.settings.MCP_TOOLS
                         ]
                         logger.info(f"FILTERED MCP TOOLS: {[tool.tool_name for tool in mcp_tools]}")
                     else:
@@ -128,7 +90,7 @@ class AgentFactory:
                 mcp_tools = []
         
         # Combine MCP tools with local tools
-        self._cached_tools = mcp_tools + self.config.local_tools
+        self._cached_tools = mcp_tools + (self.local_tools or [])
         logger.info(f"TOTAL TOOLS: {len(self._cached_tools)}")
         
         self._initialized = True
@@ -152,14 +114,14 @@ class AgentFactory:
         
         # Only create session-specific parts (cheap operation)
         agentcore_memory_config = AgentCoreMemoryConfig(
-            memory_id=self.config.memory_id,
+            memory_id=self.config.settings.MEMORY_ID,
             session_id=session_id,
             actor_id=actor_id
         )
         
         session_manager = AgentCoreMemorySessionManager(
             agentcore_memory_config=agentcore_memory_config,
-            region_name=self.config.region_name
+            region_name=self.config.settings.BEDROCK_REGION
         )
         
         # Create agent using cached components
@@ -167,7 +129,7 @@ class AgentFactory:
             agent = Agent(
                 model=self.model,
                 tools=self._cached_tools,
-                system_prompt=self.config.system_prompt,
+                system_prompt=self.system_prompt,
                 session_manager=session_manager
             )
             return agent

@@ -1,30 +1,19 @@
-from runtime.factory import AgentFactory, AgentFactoryConfig
+from runtime.factory import AgentFactory
 from runtime.app import StitchLabAgentApp
 from typing import Optional
 from strands import Agent
+import logging
 
-from agent.config import GlobalSettings, GlobalModelRegistry, AppConfig
-from agent.builder import SYSTEM_PROMPT, TOOLS
+logger = logging.getLogger(__name__)
 
-import litellm
-litellm.success_callback = ["langfuse"]
+from test import AppConfig, GlobalSettings, SYSTEM_PROMPT, TOOLS
+CONFIG = AppConfig(GlobalSettings())
 
-CONFIG = AppConfig(GlobalSettings(), GlobalModelRegistry())
-
-FACTORY_CONFIG = AgentFactoryConfig(
+AGENT_FACTORY = AgentFactory(
     system_prompt=SYSTEM_PROMPT,
     local_tools=TOOLS,
-    memory_id=CONFIG.settings.MEMORY_ID,
-    region_name=CONFIG.settings.BEDROCK_REGION,
-    model_id=getattr(CONFIG.model_registry, CONFIG.settings.MODEL_ID),
-    guardrail_id=CONFIG.settings.BEDROCK_GUARDRAIL_ID,
-    guardrail_version=CONFIG.settings.BEDROCK_GUARDRAIL_VER,
-    guardrail_trace=CONFIG.settings.BEDROCK_GUARDRAIL_TRACE,
-    mcp_url=CONFIG.settings.MCP_URL,
-    mcp_tools=CONFIG.settings.MCP_TOOLS
+    config=CONFIG
 )
-
-AGENT_FACTORY = AgentFactory(FACTORY_CONFIG)
 
 async def create_agent(actor_id: str, session_id: str) -> Optional[Agent]:
     return await AGENT_FACTORY.create_agent(actor_id=actor_id, session_id=session_id)

@@ -1,59 +1,56 @@
-import requests
-import json
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
-# Step 1: Initialize the session
-init_response = requests.post(
-    'http://localhost:8000/mcp',
-    headers={
-        'Content-Type': 'application/json',
-        'Accept': 'application/json, text/event-stream'
-    },
-    json={
-        "jsonrpc": "2.0",
-        "method": "initialize",
-        "params": {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {
-                "name": "test-client",
-                "version": "1.0.0"
-            }
-        },
-        "id": 1
-    }
-)
+from typing import Optional
+from config import GlobalConfig, BaseSettings
 
-# Extract session ID from response headers
-session_id = init_response.headers.get('Mcp-Session-Id')
-if not session_id:
-    print("Error: No session ID received from server")
-    print("Response:", init_response.text)
-    exit(1)
 
-print(f"Session ID: {session_id}")
-print(f"Initialize response: {init_response.text}\n")
+class GlobalSettings(BaseSettings):
+    APP_NAME: str = 'Strands Agent App'
+    VERBOSE: bool = os.getenv('VERBOSE', 'True').lower() in ('true', '1', 'yes')
+    DEBUG: bool = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
+    VERIFY_CERTIFICATE: bool = os.getenv('VERIFY_CERTIFICATE', 'True').lower() in ('true', '1', 'yes')
 
-# Step 2: Call the tool with session ID
-response = requests.post(
-    'http://localhost:8000/mcp',
-    headers={
-        'Content-Type': 'application/json',
-        'Accept': 'application/json, text/event-stream',
-        'Mcp-Session-Id': session_id  # Include session ID
-    },
-    json={
-        "jsonrpc": "2.0",
-        "method": "tools/call",
-        "params": {
-            "name": "count_stream",
-            "arguments": {"start": 1, "end": 5}
-        },
-        "id": 3
-    },
-    stream=True
-)
+    MCP_URL: str = os.getenv('MCP_URL', 'http://localhost:8000/mcp')
+    MCP_TOOLS: list[str] = [tool.strip() for tool in os.getenv('MCP_TOOLS', '-').split(',')]
+    
+    MODEL_ID: str = os.getenv('BEDROCK_MODEL_ID', 'CLAUDE_3_5_SONNET')
+    MEMORY_ID: str = os.getenv('BEDROCK_AGENTCORE_MEMORY_ID', '')
+    BEDROCK_REGION: str = os.getenv('BEDROCK_REGION', '')
+    BEDROCK_GUARDRAIL_TRACE: str = "disabled"
+    BEDROCK_GUARDRAIL_ID: Optional[str] = None
+    BEDROCK_GUARDRAIL_VER: Optional[str] = None
 
-print("Streaming response:")
-for chunk in response.iter_content(chunk_size=None):
-    if chunk:
-        print(chunk.decode('utf-8'), end='', flush=True)
+    LANGFUSE_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY")
+    LANGFUSE_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY")
+    LANGFUSE_HOST: Optional[str] = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+
+
+class AppConfig(GlobalConfig[GlobalSettings]):
+    pass
+
+
+from strands import tool
+
+
+@tool
+def subtract(a: int, b: int) -> int:
+    """Calculate the difference between two numbers"""
+    return a - b
+
+@tool
+def multiply(a: int, b: int) -> int:
+    """Calculate the product of two numbers"""
+    return a * b
+
+
+SYSTEM_PROMPT = """
+You are a good friend.. Be nice
+"""
+
+
+TOOLS = [
+    subtract,
+    multiply
+]

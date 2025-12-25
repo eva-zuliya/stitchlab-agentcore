@@ -1,0 +1,33 @@
+[project]
+name = "stitchlab-agentcore"
+version = "0.1.0"
+description = "StitchLab agent core application"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "strands-agents==1.20.0",
+    "langfuse>=2.0.0,<3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["runtime"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"

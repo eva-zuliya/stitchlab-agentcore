@@ -6,8 +6,8 @@ This package provides reusable components for building agents:
 - StitchLabAgentApp: Custom application wrapper
 """
 
-from .factory import AgentFactory, AgentFactoryConfig
+from .factory import AgentFactory
 from .app import StitchLabAgentApp
 
-__all__ = ['AgentFactory', 'AgentFactoryConfig', 'StitchLabAgentApp']
+__all__ = ['AgentFactory', 'StitchLabAgentApp']
 
