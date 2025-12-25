@@ -6,22 +6,23 @@ from strands import Agent
 from agent.config import GlobalSettings, GlobalModelRegistry, AppConfig
 from agent.builder import SYSTEM_PROMPT, TOOLS
 
+import litellm
+litellm.success_callback = ["langfuse"]
 
 CONFIG = AppConfig(GlobalSettings(), GlobalModelRegistry())
 
 FACTORY_CONFIG = AgentFactoryConfig(
     system_prompt=SYSTEM_PROMPT,
     local_tools=TOOLS,
-    model_id=CONFIG.settings.MODEL_ID,
     memory_id=CONFIG.settings.MEMORY_ID,
     region_name=CONFIG.settings.BEDROCK_REGION,
+    model_id=getattr(CONFIG.model_registry, CONFIG.settings.MODEL_ID),
     guardrail_id=CONFIG.settings.BEDROCK_GUARDRAIL_ID,
     guardrail_version=CONFIG.settings.BEDROCK_GUARDRAIL_VER,
     guardrail_trace=CONFIG.settings.BEDROCK_GUARDRAIL_TRACE,
     mcp_url=CONFIG.settings.MCP_URL,
     mcp_tools=CONFIG.settings.MCP_TOOLS
 )
-
 
 AGENT_FACTORY = AgentFactory(FACTORY_CONFIG)
 

@@ -20,7 +20,7 @@ class BaseSettings(BaseModel):
 
 
 class BaseModelRegistry(BaseModel):
-    CLAUDE3_5_SONNET: str = "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0"
+    CLAUDE_3_5_SONNET: str = "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0"
     NOVA_PRO: str = "bedrock/us.amazon.nova-pro-v1:0"
     QWEN3_480B: str = "bedrock/qwen.qwen3-coder-480b-a35b-v1:0"
 
@@ -32,10 +32,10 @@ TModelRegistry = TypeVar("TModelRegistry", bound=BaseModel)
 class GlobalConfig(Generic[TSettings, TModelRegistry]):
     _instance: "GlobalConfig | None" = None
     _initialized: bool = False
-    _model_router: Router
 
     settings: TSettings
     model_registry: TModelRegistry
+    model_router: Router
     logger: logging.Logger
     
 
@@ -83,7 +83,7 @@ class GlobalConfig(Generic[TSettings, TModelRegistry]):
                 }
             )
 
-        self._model_router = Router(model_list=model_list)
+        self.model_router = Router(model_list=model_list)
 
         logging.basicConfig(
             level=logging.DEBUG if settings.DEBUG else logging.INFO,

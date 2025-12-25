@@ -9,7 +9,7 @@ import logging
 from typing import List, Optional, Any, Literal
 from strands import Agent
 from strands.tools.mcp import MCPClient
-from strands.models import BedrockModel
+from strands.models.litellm import LiteLLMModel
 from bedrock_agentcore.memory.integrations.strands.config import AgentCoreMemoryConfig
 from bedrock_agentcore.memory.integrations.strands.session_manager import AgentCoreMemorySessionManager
 from mcp.client.streamable_http import streamable_http_client
@@ -28,9 +28,9 @@ class AgentFactoryConfig:
     def __init__(
         self,
         system_prompt: str,
-        model_id: str,
         memory_id: str,
         region_name: str,
+        model_id: str,
         guardrail_id: Optional[str] = None,
         guardrail_version: Optional[str] = None,
         guardrail_trace: Literal["enabled", "disabled"] = "disabled",
@@ -61,7 +61,8 @@ class AgentFactoryConfig:
         self.region_name = region_name
 
         # Set up MCP transport factory if URL is provided
-        self.mcp_transport_factory = streamable_http_client(mcp_url) if mcp_url else None
+        self.mcp_transport_factory = lambda: streamable_http_client(mcp_url)
+
         # mcp_tools is a list of tool names to filter/allow
         self.allowed_mcp_tool_names = set(mcp_tools) if mcp_tools else None
 
@@ -83,7 +84,7 @@ class AgentFactory:
             config: AgentFactoryConfig instance with project-specific settings
         """
         self.config = config
-        self._bedrock_model: Optional[BedrockModel] = None
+        self.model: Optional[LiteLLMModel] = None
         self._cached_tools: Optional[List[Any]] = None
         self._initialized = False
     
@@ -94,43 +95,36 @@ class AgentFactory:
         
         logger.info("Initializing agent factory components (this happens once)...")
         
-        # Create bedrock model with guardrail (cached)
-        model_kwargs = {
-            "model_id": self.config.model_id,
-            "guardrail_trace": self.config.guardrail_trace,
-        }
-
-        if self.config.guardrail_id:
-            model_kwargs["guardrail_id"] = self.config.guardrail_id
-
-        if self.config.guardrail_version:
-            model_kwargs["guardrail_version"] = self.config.guardrail_version
-        
-        self._bedrock_model = BedrockModel(**model_kwargs)
+        # Use the litellm model with the configured model_id
+        self.model = LiteLLMModel(
+            model_id=self.config.model_id
+        )
+        logger.info(f"Using LiteLLM model with model_id: {self.config.model_id}")
         
         # Fetch and cache MCP tools if configured (expensive operation)
         mcp_tools = []
         if self.config.mcp_transport_factory:
             try:
-                mcp_client = MCPClient(self.config.mcp_transport_factory)
-                with mcp_client:
+                logger.info("Initializing MCP client...")
+                # MCPClient must be used within a context manager
+                with MCPClient(self.config.mcp_transport_factory) as mcp_client:
+                    # List all available tools from the MCP server
                     all_mcp_tools = mcp_client.list_tools_sync()
-                    logger.info(f"MCP TOOLS: {all_mcp_tools}")
-                    
+                    logger.info(f"MCP TOOLS discovered: {[tool.tool_name for tool in all_mcp_tools]}")
+                        
                     if self.config.allowed_mcp_tool_names:
                         # Filter tools by allowed names
                         mcp_tools = [
                             tool for tool in all_mcp_tools
                             if tool.tool_name in self.config.allowed_mcp_tool_names
                         ]
-                        logger.info(f"FILTERED MCP TOOLS: {mcp_tools}")
-
+                        logger.info(f"FILTERED MCP TOOLS: {[tool.tool_name for tool in mcp_tools]}")
                     else:
                         # Use all MCP tools if no filter specified
                         mcp_tools = list(all_mcp_tools)
 
             except Exception as e:
-                logger.error(f"Error initializing MCP tools: {str(e)}")
+                logger.error(f"Error initializing MCP tools: {str(e)}", exc_info=True)
                 mcp_tools = []
         
         # Combine MCP tools with local tools
@@ -171,7 +165,7 @@ class AgentFactory:
         # Create agent using cached components
         try:
             agent = Agent(
-                model=self._bedrock_model,
+                model=self.model,
                 tools=self._cached_tools,
                 system_prompt=self.config.system_prompt,
                 session_manager=session_manager
