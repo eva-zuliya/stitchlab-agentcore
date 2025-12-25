@@ -3,14 +3,16 @@ name = "stitchlab-agentcore"
 version = "0.1.0"
 description = "StitchLab agent core application"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     "strands-agents==1.20.0",
     "langfuse>=2.0.0,<3.0.0",
     "bedrock-agentcore==1.1.1",
     "fastapi==0.127.0",
     "mcp==1.25.0",
-    "litellm==1.80.11"
+    "litellm==1.80.11",
+    "pydantic>=1.10.0,<3.0.0",
+    "python-dotenv>=1.0.0"
 ]
 
 [project.optional-dependencies]
