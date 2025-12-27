@@ -3,8 +3,8 @@ from pydantic import BaseModel
 import litellm
 import logging
 import os
-import ssl
-import urllib.request
+import pathlib
+import shutil
 
 
 class BaseSettings(BaseModel):
@@ -55,15 +55,15 @@ class GlobalConfig(Generic[TSettings]):
 
         self.settings = settings
 
+        # Configure tiktoken to use local cache file before any imports that might use it
+        self._setup_tiktoken_cache()
+
         logging.basicConfig(
             level=logging.DEBUG if settings.DEBUG else logging.INFO,
             format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         )
 
         self.logger = logging.getLogger(settings.APP_NAME)
-
-        # Configure SSL verification based on VERIFY_CERTIFICATE setting
-        self._configure_ssl_verification(settings.VERIFY_CERTIFICATE)
 
         if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY:
             litellm.success_callback = ["langfuse"]
@@ -73,45 +73,43 @@ class GlobalConfig(Generic[TSettings]):
 
         return
     
-    def _configure_ssl_verification(self, verify: bool):
-        """Configure SSL certificate verification for HTTP clients.
+    def _setup_tiktoken_cache(self):
+        """Configure tiktoken to use local cache file to avoid SSL certificate issues.
         
-        This affects:
-        - urllib (used by tiktoken for downloading encoding files)
-        - requests (used by various libraries)
-        - litellm HTTP clients
+        This sets up the TIKTOKEN_CACHE_DIR environment variable to point to a directory
+        containing the pre-cached cl100k_base.tiktoken file, preventing tiktoken from
+        attempting to download it over the network (which can fail in corporate environments
+        with SSL certificate verification issues).
         
-        Args:
-            verify: If False, disable SSL verification (for corporate proxies)
+        Tiktoken expects files to be in TIKTOKEN_CACHE_DIR/encodings/ directory.
         """
-        if not verify:
-            self.logger.warning(
-                "SSL certificate verification is DISABLED. "
-                "This should only be used in corporate environments with proxy certificates."
-            )
+        # Only set if not already configured
+        if os.environ.get("TIKTOKEN_CACHE_DIR"):
+            return
+        
+        # Find the project root directory (where this config.py file is located)
+        # and look for cl100k_base.tiktoken file
+        project_root = pathlib.Path(__file__).parent.absolute()
+        source_tiktoken_file = project_root / "cl100k_base.tiktoken"
+        
+        if source_tiktoken_file.exists():
+            # Create a cache directory structure: .tiktoken_cache/encodings/
+            cache_dir = project_root / ".tiktoken_cache"
+            encodings_dir = cache_dir / "encodings"
+            encodings_dir.mkdir(parents=True, exist_ok=True)
             
-            # Disable SSL verification for urllib (used by tiktoken)
-            # Create an unverified SSL context
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
+            # Copy the file to the encodings directory if it doesn't exist there
+            target_tiktoken_file = encodings_dir / "cl100k_base.tiktoken"
+            if not target_tiktoken_file.exists():
+                shutil.copy2(source_tiktoken_file, target_tiktoken_file)
+                logging.info(f"Copied cl100k_base.tiktoken to cache directory: {target_tiktoken_file}")
             
-            # Monkey patch urllib's default HTTPS handler to use unverified context
-            # This is needed for tiktoken which uses urllib to download encoding files
-            https_handler = urllib.request.HTTPSHandler(context=ssl_context)
-            opener = urllib.request.build_opener(https_handler)
-            urllib.request.install_opener(opener)
-            
-            # Configure requests library (used by litellm and other libraries)
-            # Set environment variable that requests respects
-            os.environ['CURL_CA_BUNDLE'] = ''
-            os.environ['REQUESTS_CA_BUNDLE'] = ''
-            
-            # Configure litellm to not verify SSL
-            litellm.ssl_verify = False
-            
-            self.logger.info("SSL verification disabled for urllib, requests, and litellm")
+            # Set TIKTOKEN_CACHE_DIR to the cache directory
+            os.environ["TIKTOKEN_CACHE_DIR"] = str(cache_dir)
+            logging.info(f"Configured tiktoken cache directory to: {cache_dir}")
         else:
-            self.logger.info("SSL certificate verification is ENABLED")
-            # Ensure litellm uses default SSL verification
-            litellm.ssl_verify = True
+            # If file doesn't exist, log a warning
+            logging.warning(
+                f"cl100k_base.tiktoken file not found at {source_tiktoken_file}. "
+                "Tiktoken will attempt to download it, which may fail in corporate networks."
+            )
