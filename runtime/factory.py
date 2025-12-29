@@ -41,6 +41,7 @@ class AgentFactory:
 
         self.model: Optional[LiteLLMModel] = None
         self._cached_tools: Optional[List[Any]] = None
+        self._mcp_client: Optional[MCPClient] = None
         self._initialized = False
     
     def _initialize_components(self):
@@ -61,22 +62,27 @@ class AgentFactory:
         if self.config.settings.MCP_URL:
             try:
                 logger.info("Initializing MCP client...")
-                # MCPClient must be used within a context manager
-                with MCPClient(lambda: streamable_http_client(self.config.settings.MCP_URL)) as mcp_client:
-                    # List all available tools from the MCP server
-                    all_mcp_tools = mcp_client.list_tools_sync()
-                    logger.info(f"MCP TOOLS discovered: {[tool.tool_name for tool in all_mcp_tools]}")
-                        
-                    if self.config.settings.MCP_TOOLS:
-                        # Filter tools by allowed names
-                        mcp_tools = [
-                            tool for tool in all_mcp_tools
-                            if tool.tool_name in self.config.settings.MCP_TOOLS
-                        ]
-                        logger.info(f"FILTERED MCP TOOLS: {[tool.tool_name for tool in mcp_tools]}")
-                    else:
-                        # Use all MCP tools if no filter specified
-                        mcp_tools = list(all_mcp_tools)
+                # Create MCPClient and keep it open for the lifetime of the factory
+                self._mcp_client = MCPClient(
+                    lambda: streamable_http_client(self.config.settings.MCP_URL)
+                )
+                # Enter the context manager to activate the client session
+                self._mcp_client.__enter__()
+                
+                # List all available tools from the MCP server
+                all_mcp_tools = self._mcp_client.list_tools_sync()
+                logger.info(f"MCP TOOLS discovered: {[tool.tool_name for tool in all_mcp_tools]}")
+                    
+                if self.config.settings.MCP_TOOLS:
+                    # Filter tools by allowed names
+                    mcp_tools = [
+                        tool for tool in all_mcp_tools
+                        if tool.tool_name in self.config.settings.MCP_TOOLS
+                    ]
+                    logger.info(f"FILTERED MCP TOOLS: {[tool.tool_name for tool in mcp_tools]}")
+                else:
+                    # Use all MCP tools if no filter specified
+                    mcp_tools = list(all_mcp_tools)
 
             except Exception as e:
                 logger.error(f"Error initializing MCP tools: {str(e)}", exc_info=True)
@@ -130,3 +136,12 @@ class AgentFactory:
         except Exception as e:
             logger.error(f"Error creating agent: {str(e)}")
             return None
+    
+    def cleanup(self):
+        """Clean up MCP client resources."""
+        if self._mcp_client:
+            try:
+                self._mcp_client.__exit__(None, None, None)
+                logger.info("MCP client closed")
+            except Exception as e:
+                logger.error(f"Error closing MCP client: {str(e)}")

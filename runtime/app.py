@@ -13,7 +13,7 @@ from starlette.middleware import Middleware
 from starlette.types import Lifespan
 
 
-class StitchLabAgentApp(BedrockAgentCoreApp):
+class StitchLabAgentCoreApp(BedrockAgentCoreApp):
     """Custom agent application that extends BedrockAgentCoreApp.
     
     This class encapsulates BedrockAgentCoreApp and adds custom functionality
@@ -65,7 +65,7 @@ class StitchLabAgentApp(BedrockAgentCoreApp):
                 expose_headers=["Content-Type"]
             )
         
-    def configure(self, **config: Any) -> 'StitchLabAgentApp':
+    def configure(self, **config: Any) -> 'StitchLabAgentCoreApp':
         """Configure the app with custom settings.
         
         Args:
@@ -92,7 +92,7 @@ class StitchLabAgentApp(BedrockAgentCoreApp):
         """
         return self._custom_config.get(key, default)
     
-    def initialize(self) -> 'StitchLabAgentApp':
+    def initialize(self) -> 'StitchLabAgentCoreApp':
         """Initialize the app with custom setup logic.
         
         This method can be overridden in subclasses to add custom
@@ -105,7 +105,7 @@ class StitchLabAgentApp(BedrockAgentCoreApp):
             # Add custom initialization logic here
             # This is where you'd add functionality common to all your agents
             self._initialized = True
-            self.logger.info("StitchLabAgentApp initialized")
+            self.logger.info("StitchLabAgentCoreApp initialized")
         return self
     
     def extract_unique_metadata(self, data: Dict[str, Any]) -> list:
@@ -123,44 +123,80 @@ class StitchLabAgentApp(BedrockAgentCoreApp):
         unique = []
         seen = set()
 
-        # Step 1: Navigate to message.content (list)
-        content_list = data.get("messages", [])
+        try:
+            # Step 1: Navigate to message.content (list)
+            content_list = data.get("messages", [])
+            
+            if not isinstance(content_list, list):
+                self.logger.debug(f"Expected messages to be a list, got {type(content_list)}")
+                return unique
 
-        for item in content_list:
-            item_contents = item.get('content', [])
-            for item_content in item_contents:
-                tool_result = item_content.get("toolResult")
-
-                if not tool_result:
+            for item in content_list:
+                if not isinstance(item, dict):
+                    self.logger.debug(f"Expected item to be a dict, got {type(item)}")
                     continue
-
-                for content_entry in tool_result.get("content", []):
-                    text_value = content_entry.get("text")
-                    if not text_value:
+                    
+                item_contents = item.get('content', [])
+                if not isinstance(item_contents, list):
+                    self.logger.debug(f"Expected content to be a list, got {type(item_contents)}")
+                    continue
+                    
+                for item_content in item_contents:
+                    if not isinstance(item_content, dict):
+                        self.logger.debug(f"Expected item_content to be a dict, got {type(item_content)}")
+                        continue
+                        
+                    tool_result = item_content.get("toolResult")
+                    if not tool_result or not isinstance(tool_result, dict):
                         continue
 
-                    # Step 2: text_value is string containing Python dict -> convert using ast.literal_eval
-                    try:
-                        parsed = ast.literal_eval(text_value)
-                    except Exception:
+                    content_entries = tool_result.get("content", [])
+                    if not isinstance(content_entries, list):
                         continue
+                        
+                    for content_entry in content_entries:
+                        if not isinstance(content_entry, dict):
+                            continue
+                            
+                        text_value = content_entry.get("text")
+                        if not text_value:
+                            continue
 
-                    # Step 3: check if metadata exists
-                    metadata = parsed.get("metadata")
-                    if not metadata:
-                        continue
+                        # Step 2: text_value is string containing Python dict -> convert using ast.literal_eval
+                        try:
+                            parsed = ast.literal_eval(text_value)
+                        except Exception as e:
+                            self.logger.debug(f"Failed to parse text_value: {e}")
+                            continue
 
-                    # Convert metadata list into each dict item
-                    # metadata = {'commands': [...]}
-                    commands = metadata.get("commands", [])
+                        if not isinstance(parsed, dict):
+                            continue
 
-                    for cmd in commands:
-                        # Make dict hashable for uniqueness
-                        key = json.dumps(cmd, sort_keys=True)
-                        if key not in seen:
-                            seen.add(key)
-                            unique.append(cmd)
+                        # Step 3: check if metadata exists
+                        metadata = parsed.get("metadata")
+                        if not metadata or not isinstance(metadata, dict):
+                            continue
 
+                        # Convert metadata list into each dict item
+                        # metadata = {'commands': [...]}
+                        commands = metadata.get("commands", [])
+                        if not isinstance(commands, list):
+                            continue
+
+                        for cmd in commands:
+                            # Make dict hashable for uniqueness
+                            try:
+                                key = json.dumps(cmd, sort_keys=True)
+                                if key not in seen:
+                                    seen.add(key)
+                                    unique.append(cmd)
+                            except Exception as e:
+                                self.logger.debug(f"Failed to serialize command: {e}")
+                                continue
+
+        except Exception as e:
+            self.logger.error(f"Error extracting metadata: {str(e)}", exc_info=True)
+            
         return unique
     
     def agent_entrypoint(self, create_agent_func: Callable) -> Callable:
