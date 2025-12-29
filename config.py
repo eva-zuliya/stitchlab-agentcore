@@ -2,6 +2,9 @@ from typing import Generic, TypeVar, Optional, Literal
 from pydantic import BaseModel
 import litellm
 import logging
+import os
+import urllib3
+import requests
 
 
 class BaseSettings(BaseModel):
@@ -58,6 +61,24 @@ class GlobalConfig(Generic[TSettings]):
         )
 
         self.logger = logging.getLogger(settings.APP_NAME)
+
+        # Define the path to your pre-downloaded tiktoken cache folder
+        tiktoken_cache_dir = os.path.abspath("assets/tiktoken_cache/")
+
+        if os.path.isdir(tiktoken_cache_dir):
+            os.environ["TIKTOKEN_CACHE_DIR"] = tiktoken_cache_dir
+
+        if not self.settings.VERIFY_CERTIFICATE:        
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            requests.packages.urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+            # Patch the requests.get to accept the verify parameter and disable SSL
+            _original_get = requests.get
+            def patched_get(url, **kwargs):
+                kwargs['verify'] = False
+                return _original_get(url, **kwargs)
+
+            requests.get = patched_get
 
         if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY:
             litellm.success_callback = ["langfuse"]
