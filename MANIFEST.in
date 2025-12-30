@@ -1,0 +1,4 @@
+include LICENSE
+include README.md
+recursive-include src/stitchlab_agentcore *.py
+recursive-include src/stitchlab_agentcore/assets *

@@ -5,6 +5,7 @@ import logging
 import os
 import urllib3
 import requests
+from importlib.resources import files
 
 
 class BaseSettings(BaseModel):
@@ -63,10 +64,19 @@ class GlobalConfig(Generic[TSettings]):
         self.logger = logging.getLogger(settings.APP_NAME)
 
         # Define the path to your pre-downloaded tiktoken cache folder
-        tiktoken_cache_dir = os.path.abspath("assets/tiktoken_cache/")
-
-        if os.path.isdir(tiktoken_cache_dir):
-            os.environ["TIKTOKEN_CACHE_DIR"] = tiktoken_cache_dir
+        # Works both in development and when installed as a library
+        try:
+            asset_path = files("stitchlab_agentcore").joinpath("assets", "tiktoken_cache")
+            tiktoken_cache_dir = str(asset_path)
+            if os.path.isdir(tiktoken_cache_dir):
+                os.environ["TIKTOKEN_CACHE_DIR"] = tiktoken_cache_dir
+        except (TypeError, ModuleNotFoundError):
+            # Fallback for development environments
+            tiktoken_cache_dir = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "assets", "tiktoken_cache")
+            )
+            if os.path.isdir(tiktoken_cache_dir):
+                os.environ["TIKTOKEN_CACHE_DIR"] = tiktoken_cache_dir
 
         if not self.settings.VERIFY_CERTIFICATE:        
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

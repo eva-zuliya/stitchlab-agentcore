@@ -3,7 +3,19 @@ name = "stitchlab-agentcore"
 version = "0.1.0"
 description = "StitchLab agent core application"
 readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "StitchLab Team", email = "evazuliya97@gmail.com"}]
 requires-python = ">=3.11,<3.14"
+keywords = ["agent", "AWS AgentCore", "ai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "strands-agents==1.20.0",
     "langfuse>=2.0.0,<3.0.0",
@@ -28,7 +40,10 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["runtime"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.black]
 line-length = 100
