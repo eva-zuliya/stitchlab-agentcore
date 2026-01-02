@@ -13,7 +13,7 @@ from strands.models.litellm import LiteLLMModel
 from bedrock_agentcore.memory.integrations.strands.config import AgentCoreMemoryConfig
 from bedrock_agentcore.memory.integrations.strands.session_manager import AgentCoreMemorySessionManager
 from mcp.client.streamable_http import streamable_http_client
-from config import GlobalConfig, BaseSettings
+from ..config import GlobalConfig, BaseSettings
 
 
 logger = logging.getLogger(__name__)
