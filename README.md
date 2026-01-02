@@ -163,4 +163,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Support
 
-For issues, questions, or contributions, please visit the GitHub repository.
+For issues, questions, or contributions, please visit the [GitHub repository](https://github.com/eva-zuliya/stitchlab-agentcore).
