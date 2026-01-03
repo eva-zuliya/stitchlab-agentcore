@@ -6,7 +6,7 @@ parts per invocation.
 """
 
 import logging
-from typing import List, Optional, Any, Literal
+from typing import List, Optional, Any, Literal, Dict
 from strands import Agent
 from strands.tools.mcp import MCPClient
 from strands.models.litellm import LiteLLMModel
@@ -95,7 +95,12 @@ class AgentFactory:
         self._initialized = True
         logger.info("Agent factory components initialized and cached")
     
-    async def create_agent(self, actor_id: str, session_id: str) -> Optional[Agent]:
+    async def create_agent(
+        self, 
+        actor_id: str, 
+        session_id: str,
+        trace_attributes: Optional[Dict[str, Any]] = None
+    ) -> Optional[Agent]:
         """Create an agent instance with session-specific configuration.
         
         This method only creates a new session_manager per invocation,
@@ -104,12 +109,16 @@ class AgentFactory:
         Args:
             actor_id: The actor ID for the session
             session_id: The session ID
+            trace_attributes: Optional trace attributes for Langfuse/OpenTelemetry
             
         Returns:
             Agent instance or None if creation fails
         """
         # Initialize components on first call (lazy initialization)
         self._initialize_components()
+        
+        # Note: OpenTelemetry is set up once in config.py initialization
+        # No need to set it up again here
         
         # Only create session-specific parts (cheap operation)
         agentcore_memory_config = AgentCoreMemoryConfig(
@@ -123,14 +132,20 @@ class AgentFactory:
             region_name=self.config.settings.BEDROCK_REGION
         )
         
-        # Create agent using cached components
+        # Create agent using cached components with trace attributes
         try:
-            agent = Agent(
-                model=self.model,
-                tools=self._cached_tools,
-                system_prompt=self.system_prompt,
-                session_manager=session_manager
-            )
+            agent_kwargs = {
+                "model": self.model,
+                "tools": self._cached_tools,
+                "system_prompt": self.system_prompt,
+                "session_manager": session_manager
+            }
+            
+            # Add trace_attributes if provided (for Langfuse nested traces)
+            if trace_attributes:
+                agent_kwargs["trace_attributes"] = trace_attributes
+            
+            agent = Agent(**agent_kwargs)
             return agent
 
         except Exception as e:

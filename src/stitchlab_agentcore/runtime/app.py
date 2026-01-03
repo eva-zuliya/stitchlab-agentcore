@@ -6,11 +6,14 @@ custom functionality for agent projects.
 
 import ast
 import json
+import uuid
 from typing import Any, AsyncGenerator, Callable, Dict, Optional, Sequence
 from bedrock_agentcore import BedrockAgentCoreApp
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware import Middleware
 from starlette.types import Lifespan
+
+from ..schema import AgentInvocationPayload
 
 
 class StitchLabAgentCoreApp(BedrockAgentCoreApp):
@@ -22,6 +25,7 @@ class StitchLabAgentCoreApp(BedrockAgentCoreApp):
     - Metadata extraction from agent responses
     - Agent caching and optimization
     - Simplified entrypoint creation
+    - Langfuse trace cost aggregation
     """
     
     def __init__(
@@ -224,15 +228,24 @@ class StitchLabAgentCoreApp(BedrockAgentCoreApp):
         """
         async def entrypoint_wrapper(payload: Dict[str, Any]) -> AsyncGenerator[Any, None]:
             """Wrapper that handles agent invocation with session management."""
-            self.logger.info(f"PAYLOAD : {payload}")
+            
             input_data = payload.get("input", {})
-            actor_id = input_data.get('actor_id', '')
-            session_id = input_data.get('session_id', '')
-            message = input_data.get('message', '')
+            invocation_payload = AgentInvocationPayload.from_input_dict(input_data)
             
             try:
-                # Get or create agent for this session
-                agent = await create_agent_func(actor_id=actor_id, session_id=session_id)
+                # Get or create agent for this session with trace attributes
+                # The trace_attributes will be used by Strands SDK's OpenTelemetry integration
+                agent = await create_agent_func(
+                    actor_id=invocation_payload.actor_id, 
+                    session_id=invocation_payload.session_id,
+                    trace_attributes={
+                        "session.id": invocation_payload.session_id,
+                        "trace.id": invocation_payload.trace_id,
+                        "user.id": invocation_payload.denormalized_actor_id,
+                        "langfuse.tags": ["agent-invocation"],
+                        "langfuse.name": "invoke-agent"
+                    }
+                )
                 
                 if agent is None:
                     error_response = {"error": "Failed to create agent", "type": "agent_creation_error"}
@@ -241,7 +254,7 @@ class StitchLabAgentCoreApp(BedrockAgentCoreApp):
                     return
 
                 prev_event = None
-                async for event in agent.stream_async(message):
+                async for event in agent.stream_async(invocation_payload.message):
                     if "data" in event:
                         yield event["data"]
                         prev_event = event
@@ -262,42 +275,6 @@ class StitchLabAgentCoreApp(BedrockAgentCoreApp):
         
         # Register as entrypoint
         return self.entrypoint(entrypoint_wrapper)
-    
-    def tool(self, func: Callable) -> Callable:
-        """Decorator to register a function as a tool.
-        
-        This is a convenience method that can be extended with custom
-        tool registration logic.
-        
-        Args:
-            func: The function to register as a tool
-            
-        Returns:
-            The decorated function
-        """
-        # Add custom tool registration logic here if needed
-        # For now, this is a placeholder for future functionality
-        return func
-    
-    def health_check(self, func: Optional[Callable] = None) -> Callable:
-        """Decorator to register a custom health check handler.
-        
-        This wraps the ping decorator with additional custom logic.
-        
-        Args:
-            func: Optional function to register
-            
-        Returns:
-            The decorated function or decorator
-        """
-        if func is None:
-            # Used as @app.health_check()
-            def decorator(f: Callable) -> Callable:
-                return self.ping(f)
-            return decorator
-        else:
-            # Used as @app.health_check
-            return self.ping(func)
     
     def __enter__(self):
         """Context manager entry."""

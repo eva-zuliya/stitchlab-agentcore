@@ -6,6 +6,7 @@ import os
 import urllib3
 import requests
 from importlib.resources import files
+import base64
 
 
 class BaseSettings(BaseModel):
@@ -90,7 +91,37 @@ class GlobalConfig(Generic[TSettings]):
 
             requests.get = patched_get
 
-        if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY:
+        if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY and settings.LANGFUSE_HOST:
+            # Set up OpenTelemetry exporter for Langfuse (Strands SDK native integration)
+            langfuse_base_url = settings.LANGFUSE_HOST
+            
+            # Build Basic Auth header
+            langfuse_auth = base64.b64encode(
+                f"{settings.LANGFUSE_PUBLIC_KEY}:{settings.LANGFUSE_SECRET_KEY}".encode()
+            ).decode()
+            
+            # Configure OpenTelemetry endpoint & headers for Strands SDK
+            # Note: Langfuse OTLP endpoint uses /api/public/otel/v1/traces
+            os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = f"{langfuse_base_url}/api/public/otel"
+            os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {langfuse_auth}"
+            # Increase timeout for OTLP exporter (in seconds, not milliseconds)
+            # The HTTP exporter uses requests library which expects seconds
+            os.environ["OTEL_EXPORTER_OTLP_TIMEOUT"] = "30"  # 30 seconds
+            
+            # Set up Strands OpenTelemetry exporter once at config initialization
+            try:
+                from strands.telemetry import StrandsTelemetry
+                # This sets up the OTLP exporter (configured via env vars above)
+                strands_telemetry = StrandsTelemetry()
+                strands_telemetry.setup_otlp_exporter()
+                self.logger.info(f"Strands OpenTelemetry exporter configured for Langfuse at {langfuse_base_url}")
+                self.logger.debug(f"OTEL endpoint: {os.environ.get('OTEL_EXPORTER_OTLP_ENDPOINT')}")
+            except ImportError as e:
+                self.logger.error(f"Could not import StrandsTelemetry. Make sure opentelemetry-exporter-otlp-proto-http is installed: {e}")
+            except Exception as e:
+                self.logger.error(f"Could not set up Strands OpenTelemetry: {e}", exc_info=True)
+            
+            # Also set up litellm callbacks for any direct litellm usage
             litellm.success_callback = ["langfuse"]
             litellm.failure_callback = ["langfuse"]
         
