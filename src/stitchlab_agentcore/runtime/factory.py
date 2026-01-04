@@ -51,10 +51,22 @@ class AgentFactory:
         
         logger.info("Initializing agent factory components (this happens once)...")
         
-        # Use the litellm model with the configured model_id
-        self.model = LiteLLMModel(
-            model_id=self.config.settings.MODEL_ID
-        )
+        model_kwargs = {"model_id": self.config.settings.MODEL_ID}
+
+        if (
+            self.config.settings.BEDROCK_GUARDRAIL_ID
+            and self.config.settings.BEDROCK_GUARDRAIL_VER
+        ):
+            model_kwargs["client_args"] = {
+                "guardrailConfig": {
+                    "guardrailIdentifier": self.config.settings.BEDROCK_GUARDRAIL_ID,
+                    "guardrailVersion": self.config.settings.BEDROCK_GUARDRAIL_VER,
+                    "trace": self.config.settings.BEDROCK_GUARDRAIL_TRACE
+                }
+            }
+
+        self.model = LiteLLMModel(**model_kwargs)
+
         logger.info(f"Using LiteLLM model with model_id: {self.config.settings.MODEL_ID}")
         
         # Fetch and cache MCP tools if configured (expensive operation)
