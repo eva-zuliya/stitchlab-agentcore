@@ -252,16 +252,18 @@ class StitchLabAgentCoreApp(BedrockAgentCoreApp):
                     self.logger.error(f"Agent creation failed: {error_response}")
                     yield error_response
                     return
-
+                
                 prev_event = None
-                async for event in agent.stream_async(invocation_payload.message):
+                async for event in agent.stream_async(
+                    invocation_payload.message,
+                    invocation_state=invocation_payload.invocation_state
+                ):
                     if "data" in event:
                         yield event["data"]
                         prev_event = event
                     
                     # Check for end of turn to extract metadata
                     if "AgentResult(stop_reason='end_turn'" in str(event):
-                        self.logger.info(f"FINAL RESULT : {event}")
                         if prev_event is not None:
                             metadata = self.extract_unique_metadata(prev_event)
                             if metadata:
