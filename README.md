@@ -45,25 +45,28 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+### ================ Implement your Strands Agent here ================ 
+
 class GlobalSettings(BaseSettings):
-    APP_NAME: str = 'Strands Agent App'
+    APP_NAME: str = 'Your Strands Agent App Name'
     VERBOSE: bool = os.getenv('VERBOSE', 'True').lower() in ('true', '1', 'yes')
     DEBUG: bool = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
     VERIFY_CERTIFICATE: bool = os.getenv('VERIFY_CERTIFICATE', 'True').lower() in ('true', '1', 'yes')
 
-    MCP_URL: str = os.getenv('MCP_URL', 'http://localhost:8000/mcp')
+    MCP_URL: str = os.getenv('MCP_URL')
     MCP_TOOLS: list[str] = [tool.strip() for tool in os.getenv('MCP_TOOLS', '-').split(',')]
     
-    MODEL_ID: str = os.getenv('BEDROCK_MODEL_ID', 'CLAUDE_3_5_SONNET')
-    MEMORY_ID: str = os.getenv('BEDROCK_AGENTCORE_MEMORY_ID', '')
-    BEDROCK_REGION: str = os.getenv('BEDROCK_REGION', '')
+    MODEL_ID: str = os.getenv('BEDROCK_MODEL_ID', 'bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0')
+    MEMORY_ID: str = os.getenv('BEDROCK_AGENTCORE_MEMORY_ID')
+    BEDROCK_REGION: str = os.getenv('BEDROCK_REGION')
+    
     BEDROCK_GUARDRAIL_TRACE: str = "disabled"
     BEDROCK_GUARDRAIL_ID: Optional[str] = None
     BEDROCK_GUARDRAIL_VER: Optional[str] = None
 
     LANGFUSE_PUBLIC_KEY: Optional[str] = os.getenv("LANGFUSE_PUBLIC_KEY")
     LANGFUSE_SECRET_KEY: Optional[str] = os.getenv("LANGFUSE_SECRET_KEY")
-    LANGFUSE_HOST: Optional[str] = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    LANGFUSE_HOST: Optional[str] = os.getenv("LANGFUSE_HOST")
 
 
 class AppConfig(GlobalConfig[GlobalSettings]):
@@ -93,14 +96,17 @@ TOOLS = [
     multiply
 ]
 
+### ================ End of Implement ================ 
+
+
 AGENT_FACTORY = AgentFactory(
     system_prompt=SYSTEM_PROMPT,
     local_tools=TOOLS,
     config=CONFIG
 )
 
-async def create_agent(actor_id: str, session_id: str) -> Optional[Agent]:
-    return await AGENT_FACTORY.create_agent(actor_id=actor_id, session_id=session_id)
+async def create_agent(actor_id: str, session_id: str, trace_attributes: Optional[dict] = None) -> Optional[Agent]:
+    return await AGENT_FACTORY.create_agent(actor_id=actor_id, session_id=session_id, trace_attributes=trace_attributes)
 
 
 app = StitchLabAgentCoreApp(debug=True).initialize()
@@ -132,26 +138,6 @@ The StitchLab Agent Core provides:
 - **Config**: Centralized configuration management
 - **Assets**: Built-in resources and caching
 
-## Development
-
-### Install dev dependencies
-
-```bash
-pip install -e ".[dev]"
-```
-
-### Running tests
-
-```bash
-pytest
-```
-
-### Code formatting
-
-```bash
-black src/
-ruff check src/
-```
 
 ## License
 
