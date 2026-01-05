@@ -45,7 +45,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-### ================ Implement your Strands Agent here ================ 
+### ================ Implement your Strands Agent ================ 
 
 class GlobalSettings(BaseSettings):
     APP_NAME: str = 'Your Strands Agent App Name'
@@ -96,7 +96,7 @@ TOOLS = [
     multiply
 ]
 
-### ================ End of Implement ================ 
+### ================ End of Implementation ================ 
 
 
 AGENT_FACTORY = AgentFactory(
