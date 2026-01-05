@@ -7,6 +7,7 @@ import urllib3
 import requests
 from importlib.resources import files
 import base64
+from langfuse import Langfuse
 
 
 class BaseSettings(BaseModel):
@@ -35,18 +36,30 @@ class GlobalConfig(Generic[TSettings]):
 
     settings: TSettings
     logger: logging.Logger
+    langfuse: Optional[Langfuse] = None
     
 
     def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+        if cls is GlobalConfig:
+            raise TypeError("GlobalConfig is abstract")
+
+        if GlobalConfig._instance is None:
+            GlobalConfig._instance = super().__new__(cls)
+        
+        return GlobalConfig._instance
+
+    @classmethod
+    def get(cls) -> "GlobalConfig":
+        if GlobalConfig._instance is None:
+            raise RuntimeError(
+                "GlobalConfig is not initialized. "
+                "Initialize it in the application bootstrap."
+            )
+
+        return GlobalConfig._instance
 
 
-    def __init__(
-        self,
-        settings: TSettings | None = None,
-    ):
+    def __init__(self, settings: TSettings | None = None):
         if self._initialized:
             return
 
@@ -92,6 +105,12 @@ class GlobalConfig(Generic[TSettings]):
             requests.get = patched_get
 
         if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY and settings.LANGFUSE_HOST:
+            self.langfuse = Langfuse(
+                public_key=settings.LANGFUSE_PUBLIC_KEY,
+                secret_key=settings.LANGFUSE_SECRET_KEY,
+                host=settings.LANGFUSE_HOST
+            )
+            
             # Set up OpenTelemetry exporter for Langfuse (Strands SDK native integration)
             langfuse_base_url = settings.LANGFUSE_HOST
             
@@ -104,8 +123,6 @@ class GlobalConfig(Generic[TSettings]):
             # Note: Langfuse OTLP endpoint uses /api/public/otel/v1/traces
             os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = f"{langfuse_base_url}/api/public/otel"
             os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {langfuse_auth}"
-            # Increase timeout for OTLP exporter (in seconds, not milliseconds)
-            # The HTTP exporter uses requests library which expects seconds
             os.environ["OTEL_EXPORTER_OTLP_TIMEOUT"] = "30"  # 30 seconds
             
             # Set up Strands OpenTelemetry exporter once at config initialization
@@ -116,8 +133,10 @@ class GlobalConfig(Generic[TSettings]):
                 strands_telemetry.setup_otlp_exporter()
                 self.logger.info(f"Strands OpenTelemetry exporter configured for Langfuse at {langfuse_base_url}")
                 self.logger.debug(f"OTEL endpoint: {os.environ.get('OTEL_EXPORTER_OTLP_ENDPOINT')}")
+
             except ImportError as e:
                 self.logger.error(f"Could not import StrandsTelemetry. Make sure opentelemetry-exporter-otlp-proto-http is installed: {e}")
+
             except Exception as e:
                 self.logger.error(f"Could not set up Strands OpenTelemetry: {e}", exc_info=True)
             
