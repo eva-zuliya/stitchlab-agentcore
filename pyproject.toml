@@ -1,6 +1,6 @@
 [project]
 name = "stitchlab-agentcore"
-version = "0.1.2"
+version = "0.1.4"
 description = "StitchLab agent core application"
 readme = "README.md"
 license = {text = "MIT"}

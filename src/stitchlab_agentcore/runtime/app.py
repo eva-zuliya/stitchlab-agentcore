@@ -167,11 +167,15 @@ class StitchLabAgentCoreApp(BedrockAgentCoreApp):
                             continue
 
                         # Step 2: text_value is string containing Python dict -> convert using ast.literal_eval
+                        # Fallback to json.loads if ast.literal_eval fails
                         try:
                             parsed = ast.literal_eval(text_value)
                         except Exception as e:
-                            self.logger.debug(f"Failed to parse text_value: {e}")
-                            continue
+                            try:
+                                parsed = json.loads(text_value)
+                            except Exception as json_e:
+                                self.logger.debug(f"Failed to parse text_value with ast.literal_eval: {e}, and with json.loads: {json_e}")
+                                continue
 
                         if not isinstance(parsed, dict):
                             continue
