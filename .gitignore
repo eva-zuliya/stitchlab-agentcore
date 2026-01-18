@@ -154,3 +154,4 @@ cython_debug/
 .tiktoken_cache/
 
 test.py
+publish.sh
