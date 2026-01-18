@@ -262,12 +262,16 @@ class StitchLabAgentCoreApp(BedrockAgentCoreApp):
                     invocation_payload.message,
                     invocation_state=invocation_payload.invocation_state
                 ):
-                    if "data" in event:
-                        yield event["data"]
-                        prev_event = event
-                    
+                    if invocation_payload.is_streaming_response:
+                        if "data" in event:
+                            yield event["data"]
+                            prev_event = event
+                        
                     # Check for end of turn to extract metadata
                     if "AgentResult(stop_reason='end_turn'" in str(event):
+                        if not invocation_payload.is_streaming_response:
+                            yield event["result"].message['content'][0]['text']
+
                         if prev_event is not None:
                             metadata = self.extract_unique_metadata(prev_event)
                             if metadata:

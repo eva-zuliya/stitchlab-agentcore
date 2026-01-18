@@ -17,6 +17,7 @@ class AgentInvocationPayload(BaseModel):
     session_id: str
     trace_id: str
     message: str
+    is_streaming_response: bool = True
     attachments: Optional[list[dict[str, Any]]] = None
 
     @classmethod
@@ -29,6 +30,7 @@ class AgentInvocationPayload(BaseModel):
             session_id=input_data.get('session_id'),
             trace_id=str(uuid.uuid4()),
             message=input_data.get('message'),
+            is_streaming_response=input_data.get('is_streaming_response', True),
             attachments=input_data.get('attachments', None)
         )
 
