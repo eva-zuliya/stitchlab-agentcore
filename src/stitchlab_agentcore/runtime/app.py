@@ -6,12 +6,12 @@ custom functionality for agent projects.
 
 import ast
 import json
-import uuid
 from typing import Any, AsyncGenerator, Callable, Dict, Optional, Sequence
 from bedrock_agentcore import BedrockAgentCoreApp
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware import Middleware
 from starlette.types import Lifespan
+from strands.agent.agent_result import AgentResult
 
 from ..schema import AgentInvocationPayload
 
@@ -266,19 +266,33 @@ class StitchLabAgentCoreApp(BedrockAgentCoreApp):
                         if "data" in event:
                             yield event["data"]
                             prev_event = event
-                        
-                    # Check for end of turn to extract metadata
-                    if "AgentResult(stop_reason='end_turn'" in str(event):
-                        if not invocation_payload.is_streaming_response:
-                            yield event["result"].message['content'][0]['text']
 
-                        if prev_event is not None:
-                            metadata = self.extract_unique_metadata(prev_event)
-                            if metadata:
-                                yield metadata
+                        if prev_event is not None and "event" in event:
+                            if event.get("event", {}).get("contentBlockStart", {}).get("start") == {}:
+                                yield "\n"
+
+                    # Check for end of turn to extract metadata
+                    # if "AgentResult(stop_reason='end_turn'" in str(event):
+                    #     # data: "{'result': AgentResult(stop_reason='end_turn', ...
+                    #     if prev_event is not None:
+                    #         metadata = self.extract_unique_metadata(prev_event)
+                    #         if metadata:
+                    #             yield metadata
+
+                    if "result" in event:
+                        result = event["result"]
+
+                        if isinstance(result, AgentResult) and result.stop_reason == "end_turn":
+                            if not invocation_payload.is_streaming_response:
+                                yield result.message['content'][0]['text']
+
+                            if prev_event is not None:
+                                metadata = self.extract_unique_metadata(prev_event)
+                                if metadata:
+                                    yield metadata
+                        
                             
             except Exception as e:
-                # Handle errors gracefully in streaming context
                 error_response = {"error": str(e), "type": "stream_error"}
                 self.logger.error(f"Agent invocation error: {error_response}")
                 yield error_response
