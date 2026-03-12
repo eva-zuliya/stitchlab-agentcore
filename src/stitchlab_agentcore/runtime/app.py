@@ -269,7 +269,7 @@ class StitchLabAgentCoreApp(BedrockAgentCoreApp):
 
                         if prev_event is not None and "event" in event:
                             if event.get("event", {}).get("contentBlockStart", {}).get("start") == {}:
-                                yield "\n"
+                                yield "\n\n"
 
                     # Check for end of turn to extract metadata
                     # if "AgentResult(stop_reason='end_turn'" in str(event):

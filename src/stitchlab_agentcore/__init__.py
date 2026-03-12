@@ -1,6 +1,6 @@
 """StitchLab Agent Core - A powerful agent core application for AI development."""
 
-__version__ = "0.1.5"
+__version__ = "0.1.8"
 __author__ = "StitchLab Team"
 __license__ = "MIT"
 
