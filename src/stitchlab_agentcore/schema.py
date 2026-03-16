@@ -14,6 +14,7 @@ class AgentInvocationAttachment(BaseModel):
 
 class AgentInvocationPayload(BaseModel):
     actor_id: str
+    actor_attributes: Optional[dict[str, Any]] = None
     session_id: str
     trace_id: str
     message: str
@@ -27,6 +28,7 @@ class AgentInvocationPayload(BaseModel):
         """
         return cls(
             actor_id=input_data.get('actor_id'),
+            actor_attributes=input_data.get('actor_attributes', None),
             session_id=input_data.get('session_id'),
             trace_id=str(uuid.uuid4()),
             message=input_data.get('message'),
@@ -36,11 +38,14 @@ class AgentInvocationPayload(BaseModel):
 
     @property
     def invocation_state(self) -> dict:
+        state = {}
         if self.attachments:
-            return {
-                'attachments' : self.attachments
-            }
-        return {}
+            state['attachments'] = self.attachments
+        
+        if self.actor_attributes:
+            state['actor_attributes'] = self.actor_attributes
+
+        return state
 
     @property
     def denormalized_actor_id(self) -> str:
