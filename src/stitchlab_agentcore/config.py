@@ -8,6 +8,7 @@ import requests
 from importlib.resources import files
 import base64
 from langfuse import Langfuse
+from strands.telemetry import StrandsTelemetry
 
 
 class BaseSettings(BaseModel):
@@ -84,6 +85,7 @@ class GlobalConfig(Generic[TSettings]):
             tiktoken_cache_dir = str(asset_path)
             if os.path.isdir(tiktoken_cache_dir):
                 os.environ["TIKTOKEN_CACHE_DIR"] = tiktoken_cache_dir
+
         except (TypeError, ModuleNotFoundError):
             # Fallback for development environments
             tiktoken_cache_dir = os.path.abspath(
@@ -105,6 +107,10 @@ class GlobalConfig(Generic[TSettings]):
             requests.get = patched_get
 
         if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY and settings.LANGFUSE_HOST:
+            # Disable AgentCore's default ADOT observability so that
+            # StrandsTelemetry can set the global TracerProvider for Langfuse.
+            os.environ.setdefault("DISABLE_ADOT_OBSERVABILITY", "True")
+
             self.langfuse = Langfuse(
                 public_key=settings.LANGFUSE_PUBLIC_KEY,
                 secret_key=settings.LANGFUSE_SECRET_KEY,
@@ -125,12 +131,10 @@ class GlobalConfig(Generic[TSettings]):
             os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {langfuse_auth}"
             os.environ["OTEL_EXPORTER_OTLP_TIMEOUT"] = "30"  # 30 seconds
             
-            # Set up Strands OpenTelemetry exporter once at config initialization
             try:
-                from strands.telemetry import StrandsTelemetry
-                # This sets up the OTLP exporter (configured via env vars above)
                 strands_telemetry = StrandsTelemetry()
                 strands_telemetry.setup_otlp_exporter()
+
                 self.logger.info(f"Strands OpenTelemetry exporter configured for Langfuse at {langfuse_base_url}")
                 self.logger.debug(f"OTEL endpoint: {os.environ.get('OTEL_EXPORTER_OTLP_ENDPOINT')}")
 

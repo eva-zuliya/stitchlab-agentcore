@@ -154,4 +154,5 @@ cython_debug/
 .tiktoken_cache/
 
 test.py
+aws.py
 publish.sh
