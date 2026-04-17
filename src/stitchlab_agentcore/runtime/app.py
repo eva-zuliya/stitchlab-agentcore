@@ -271,20 +271,16 @@ class StitchLabAgentCoreApp(BedrockAgentCoreApp):
                             if event.get("event", {}).get("contentBlockStart", {}).get("start") == {}:
                                 yield "\n\n"
 
-                    # Check for end of turn to extract metadata
-                    # if "AgentResult(stop_reason='end_turn'" in str(event):
-                    #     # data: "{'result': AgentResult(stop_reason='end_turn', ...
-                    #     if prev_event is not None:
-                    #         metadata = self.extract_unique_metadata(prev_event)
-                    #         if metadata:
-                    #             yield metadata
-
                     if "result" in event:
                         result = event["result"]
 
                         if isinstance(result, AgentResult) and result.stop_reason == "end_turn":
                             if not invocation_payload.is_streaming_response:
-                                yield result.message['content'][0]['text']
+                                if "content" in result.message:
+                                    for content in result.message["content"]:
+                                        if "text" in content:
+                                            yield content["text"]
+                                            break
 
                             if prev_event is not None:
                                 metadata = self.extract_unique_metadata(prev_event)
