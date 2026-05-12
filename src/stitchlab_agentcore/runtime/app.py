@@ -248,10 +248,7 @@ class StitchLabAgentCoreApp(BedrockAgentCoreApp):
                         "trace.id": invocation_payload.trace_id,
                         "user.id": invocation_payload.denormalized_actor_id,
                         "langfuse.tags": ["agent-invocation"],
-                        "langfuse.name": "invoke-agent",
-                        "metadata": {
-                            "agent.name": invocation_payload.agent_name,
-                        }
+                        "langfuse.name": "invoke-agent"
                     }
                 )
                 
