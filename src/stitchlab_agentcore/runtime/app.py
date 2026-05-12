@@ -243,11 +243,15 @@ class StitchLabAgentCoreApp(BedrockAgentCoreApp):
                     actor_id=invocation_payload.actor_id, 
                     session_id=invocation_payload.session_id,
                     trace_attributes={
+                        "agent.name": invocation_payload.agent_name,
                         "session.id": invocation_payload.session_id,
                         "trace.id": invocation_payload.trace_id,
                         "user.id": invocation_payload.denormalized_actor_id,
                         "langfuse.tags": ["agent-invocation"],
-                        "langfuse.name": "invoke-agent"
+                        "langfuse.name": "invoke-agent",
+                        "metadata": {
+                            "agent.name": invocation_payload.agent_name,
+                        }
                     }
                 )
                 

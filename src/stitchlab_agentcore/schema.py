@@ -13,6 +13,7 @@ class AgentInvocationAttachment(BaseModel):
 
 
 class AgentInvocationPayload(BaseModel):
+    agent_name: str
     actor_id: str
     actor_attributes: Optional[dict[str, Any]] = None
     session_id: str
@@ -27,6 +28,7 @@ class AgentInvocationPayload(BaseModel):
         Create an AgentInvocationPayload instance from an input dict, such as payload['input'].
         """
         return cls(
+            agent_name=input_data.get('agent_name', '__DEFAULT__'),
             actor_id=input_data.get('actor_id'),
             actor_attributes=input_data.get('actor_attributes', None),
             session_id=input_data.get('session_id'),
